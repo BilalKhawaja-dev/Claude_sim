@@ -1,0 +1,46 @@
+{
+  "realm": "claude-simulator",
+  "enabled": true,
+  "displayName": "Claude Simulator",
+  "bruteForceProtected": true,
+  "maxFailureWaitSeconds": 900,
+  "maxLoginFailures": 5,
+  "waitIncrementSeconds": 60,
+  "minimumQuickLoginWaitSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "permanentLockout": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 1800,
+  "clients": [
+    {
+      "clientId": "claude-simulator-app",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["*"],
+      "webOrigins": ["*"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": [
+    {
+      "username": "claude-user",
+      "enabled": true,
+      "email": "user@example.com",
+      "firstName": "Claude",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "changeme",
+          "temporary": true
+        }
+      ]
+    }
+  ]
+}

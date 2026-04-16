@@ -1,0 +1,47 @@
+# Helm values for bitnami/keycloak chart
+# Deploy: helm install keycloak bitnami/keycloak -n auth -f values.yaml
+
+auth:
+  adminUser: admin
+  existingSecret: keycloak-admin-secret
+  passwordSecretKey: admin-password
+
+# Import realm on startup
+keycloakConfigCli:
+  enabled: true
+  configuration:
+    realm-config.json: |
+      {{- .Files.Get "realm-config.json" | nindent 6 }}
+
+# Use external RDS PostgreSQL
+postgresql:
+  enabled: false
+
+externalDatabase:
+  host: ""          # Set via --set or Ansible (e.g., RDS endpoint)
+  port: 5432
+  user: keycloak
+  database: keycloak
+  existingSecret: keycloak-db-secret
+  existingSecretPasswordKey: db-password
+
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "250m"
+  limits:
+    memory: "1Gi"
+    cpu: "500m"
+
+service:
+  type: ClusterIP
+  ports:
+    http: 8080
+
+proxyAddressForwarding: true
+
+extraEnvVars:
+  - name: KC_PROXY
+    value: "edge"
+  - name: KC_HOSTNAME_STRICT
+    value: "false"

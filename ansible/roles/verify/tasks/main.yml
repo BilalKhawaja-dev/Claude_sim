@@ -1,0 +1,70 @@
+---
+# Health check all deployed services
+
+- name: Wait for backend deployment to be available
+  kubernetes.core.k8s_info:
+    kind: Deployment
+    name: claude-simulator-backend
+    namespace: claude-simulator
+    wait: true
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: 120
+
+- name: Wait for frontend deployment to be available
+  kubernetes.core.k8s_info:
+    kind: Deployment
+    name: claude-simulator-frontend
+    namespace: claude-simulator
+    wait: true
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: 120
+
+- name: Wait for Keycloak deployment to be available
+  kubernetes.core.k8s_info:
+    kind: Deployment
+    namespace: auth
+    label_selectors:
+      - app.kubernetes.io/name=keycloak
+    wait: true
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: 120
+
+- name: Wait for Prometheus deployment to be available
+  kubernetes.core.k8s_info:
+    kind: Deployment
+    namespace: monitoring
+    label_selectors:
+      - app=kube-prometheus-stack-operator
+    wait: true
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: 120
+
+- name: Get backend service endpoint
+  kubernetes.core.k8s_info:
+    kind: Service
+    name: claude-simulator-backend
+    namespace: claude-simulator
+  register: backend_svc
+
+- name: Health check backend API
+  ansible.builtin.uri:
+    url: "http://{{ backend_svc.resources[0].spec.clusterIP }}:8000/api/health"
+    method: GET
+    return_content: true
+    status_code: [200]
+  register: health_result
+  retries: 5
+  delay: 10
+  until: health_result.status == 200
+
+- name: Display health check result
+  ansible.builtin.debug:
+    msg: "Backend health check: {{ health_result.json }}"

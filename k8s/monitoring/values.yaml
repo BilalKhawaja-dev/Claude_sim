@@ -1,0 +1,60 @@
+# Helm values for prometheus-community/kube-prometheus-stack
+# Deploy: helm install monitoring prometheus-community/kube-prometheus-stack -n monitoring -f values.yaml
+
+# --- Prometheus ---
+prometheus:
+  enabled: true
+  prometheusSpec:
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+    additionalScrapeConfigs:
+      - job_name: "claude-simulator-backend"
+        metrics_path: /metrics
+        scrape_interval: 15s
+        static_configs:
+          - targets:
+              - "claude-simulator-backend.claude-simulator.svc.cluster.local:8000"
+            labels:
+              app: claude-simulator-backend
+
+# --- Grafana ---
+grafana:
+  enabled: true
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "150m"
+    limits:
+      memory: "512Mi"
+      cpu: "300m"
+  grafana.ini:
+    server:
+      root_url: "%(protocol)s://%(domain)s/grafana/"
+      serve_from_sub_path: true
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: "claude-simulator"
+          orgId: 1
+          folder: "Claude Simulator"
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/claude-simulator
+  dashboardsConfigMaps:
+    claude-simulator: "grafana-dashboards-claude-simulator"
+
+# --- node-exporter ---
+nodeExporter:
+  enabled: true
+
+# --- kube-state-metrics ---
+kubeStateMetrics:
+  enabled: true

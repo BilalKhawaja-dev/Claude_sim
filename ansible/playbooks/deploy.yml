@@ -1,0 +1,50 @@
+---
+# Main deployment playbook for Claude Simulator
+# Orchestrates all roles in order: helm-repos → monitoring → keycloak → application → verify
+#
+# Usage:
+#   ansible-playbook ansible/playbooks/deploy.yml
+#   ansible-playbook ansible/playbooks/deploy.yml -e "rds_endpoint=mydb.xxx.rds.amazonaws.com"
+#   ansible-playbook ansible/playbooks/deploy.yml -e "keycloak_admin_password=secret keycloak_db_password=dbsecret"
+
+- name: Deploy Claude Simulator to EKS
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    rds_endpoint: "{{ lookup('env', 'RDS_ENDPOINT') | default('localhost', true) }}"
+    keycloak_admin_password: "{{ lookup('env', 'KEYCLOAK_ADMIN_PASSWORD') | default('changeme', true) }}"
+    keycloak_db_password: "{{ lookup('env', 'KEYCLOAK_DB_PASSWORD') | default('changeme', true) }}"
+
+  pre_tasks:
+    - name: Verify kubectl is configured
+      ansible.builtin.command:
+        cmd: kubectl cluster-info
+      changed_when: false
+      register: cluster_info
+
+    - name: Display cluster info
+      ansible.builtin.debug:
+        msg: "Connected to cluster: {{ cluster_info.stdout_lines[0] }}"
+
+    - name: Verify Helm is installed
+      ansible.builtin.command:
+        cmd: helm version --short
+      changed_when: false
+
+  roles:
+    - role: helm-repos
+    - role: monitoring
+    - role: keycloak
+    - role: application
+    - role: verify
+
+  post_tasks:
+    - name: Deployment complete
+      ansible.builtin.debug:
+        msg: >-
+          Claude Simulator deployed successfully.
+          Backend: claude-simulator namespace
+          Keycloak: auth namespace
+          Monitoring: monitoring namespace

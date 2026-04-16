@@ -1,0 +1,6 @@
+apiVersion: v2
+name: claude-simulator-frontend
+description: Next.js frontend for Claude Simulator
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

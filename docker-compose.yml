@@ -1,0 +1,89 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: claude-sim-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: claude_simulator
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d claude_simulator"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - claude-sim
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: claude-sim-backend
+    ports:
+      - "8000:8000"
+    environment:
+      CLAUDE_SIM_DATABASE_URL: "postgresql+asyncpg://postgres:postgres@postgres:5432/claude_simulator"
+      CLAUDE_SIM_AWS_REGION: "us-east-1"
+      CLAUDE_SIM_BEDROCK_REGION: "us-east-1"
+      CLAUDE_SIM_KEYCLOAK_URL: "http://keycloak:8080"
+      CLAUDE_SIM_KEYCLOAK_REALM: "claude-simulator"
+      CLAUDE_SIM_KEYCLOAK_CLIENT_ID: "claude-simulator-app"
+      CLAUDE_SIM_SES_SENDER_EMAIL: "noreply@example.com"
+      CLAUDE_SIM_SES_RECIPIENT_EMAIL: "user@example.com"
+      CLAUDE_SIM_CORS_ORIGINS: '["http://localhost:3000"]'
+      CLAUDE_SIM_IDLE_TIMEOUT_MINUTES: "5"
+      CLAUDE_SIM_CONVERSATION_RETENTION_DAYS: "30"
+      CLAUDE_SIM_DEBUG: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - claude-sim
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: claude-sim-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: "http://localhost:8000"
+      NEXT_PUBLIC_KEYCLOAK_URL: "http://localhost:8080"
+      NEXT_PUBLIC_KEYCLOAK_REALM: "claude-simulator"
+      NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: "claude-simulator-app"
+    depends_on:
+      - backend
+    networks:
+      - claude-sim
+
+  keycloak:
+    image: bitnami/keycloak:latest
+    container_name: claude-sim-keycloak
+    ports:
+      - "8080:8080"
+    environment:
+      KEYCLOAK_ADMIN_USER: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KEYCLOAK_DATABASE_VENDOR: postgresql
+      KEYCLOAK_DATABASE_HOST: postgres
+      KEYCLOAK_DATABASE_PORT: "5432"
+      KEYCLOAK_DATABASE_NAME: claude_simulator
+      KEYCLOAK_DATABASE_USER: postgres
+      KEYCLOAK_DATABASE_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - claude-sim
+
+volumes:
+  pgdata:
+
+networks:
+  claude-sim:
+    driver: bridge

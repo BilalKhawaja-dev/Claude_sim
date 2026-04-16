@@ -1,0 +1,62 @@
+---
+# Deploy Keycloak and configure realm, client, and user
+
+- name: Create auth namespace
+  kubernetes.core.k8s:
+    api_version: v1
+    kind: Namespace
+    name: auth
+    state: present
+
+- name: Create Keycloak admin secret
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: keycloak-admin-secret
+        namespace: auth
+      type: Opaque
+      stringData:
+        admin-password: "{{ keycloak_admin_password | default('changeme') }}"
+  no_log: true
+
+- name: Create Keycloak DB secret
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: keycloak-db-secret
+        namespace: auth
+      type: Opaque
+      stringData:
+        db-password: "{{ keycloak_db_password | default('changeme') }}"
+  no_log: true
+
+- name: Deploy Keycloak Helm chart
+  kubernetes.core.helm:
+    name: keycloak
+    chart_ref: bitnami/keycloak
+    release_namespace: auth
+    create_namespace: true
+    values_files:
+      - "{{ playbook_dir }}/../../k8s/keycloak/values.yaml"
+    set_values:
+      - value: "externalDatabase.host={{ rds_endpoint | default('localhost') }}"
+    wait: true
+    wait_timeout: "300s"
+
+- name: Wait for Keycloak pod to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: auth
+    label_selectors:
+      - app.kubernetes.io/name=keycloak
+    wait: true
+    wait_condition:
+      type: Ready
+      status: "True"
+    wait_timeout: 300

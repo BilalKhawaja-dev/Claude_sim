@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+.hypothesis/
+backend/.hypothesis/
+
+# Build outputs
+frontend/.next/
+frontend/out/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.production
+*.env
+
+# Terraform
+terraform/.terraform/
+terraform/**/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/.terraform.lock.hcl
+terraform/**/.terraform.lock.hcl
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+.docker/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets — never commit real values
+k8s/secrets/*-populated.yaml
+
+# Logs
+*.log

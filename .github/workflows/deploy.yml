@@ -1,0 +1,127 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+  EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Stage 1: Test (parallel)
+  # ---------------------------------------------------------------------------
+  test-backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Run pytest
+        run: pytest tests/ -v
+        working-directory: backend
+
+  test-frontend:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Run jest
+        run: npx jest --ci
+        working-directory: frontend
+
+  # ---------------------------------------------------------------------------
+  # Stage 2: Build & Push Docker images to ECR
+  # ---------------------------------------------------------------------------
+  build-and-push:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.CICD_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push backend image
+        run: |
+          IMAGE_URI=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/claude-simulator-backend:${{ github.sha }}
+          docker build -t $IMAGE_URI backend/
+          docker push $IMAGE_URI
+
+      - name: Build and push frontend image
+        run: |
+          IMAGE_URI=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/claude-simulator-frontend:${{ github.sha }}
+          docker build -t $IMAGE_URI frontend/
+          docker push $IMAGE_URI
+
+  # ---------------------------------------------------------------------------
+  # Stage 3: Deploy to EKS
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.CICD_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+
+      - name: Deploy backend
+        run: |
+          IMAGE_URI=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/claude-simulator-backend:${{ github.sha }}
+          kubectl set image deployment/claude-simulator-backend \
+            claude-simulator-backend=$IMAGE_URI \
+            -n claude-simulator
+
+      - name: Deploy frontend
+        run: |
+          IMAGE_URI=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/claude-simulator-frontend:${{ github.sha }}
+          kubectl set image deployment/claude-simulator-frontend \
+            claude-simulator-frontend=$IMAGE_URI \
+            -n claude-simulator
+
+      - name: Verify rollout
+        run: |
+          kubectl rollout status deployment/claude-simulator-backend -n claude-simulator --timeout=120s
+          kubectl rollout status deployment/claude-simulator-frontend -n claude-simulator --timeout=120s

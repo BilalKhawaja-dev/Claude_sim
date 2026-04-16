@@ -1,0 +1,34 @@
+replicaCount: 2
+
+image:
+  repository: claude-simulator-backend
+  tag: latest
+  pullPolicy: IfNotPresent
+
+namespace: claude-simulator
+
+service:
+  type: ClusterIP
+  port: 8000
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "250m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+livenessProbe:
+  httpGet:
+    path: /api/health
+    port: 8000
+  initialDelaySeconds: 15
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /api/health
+    port: 8000
+  initialDelaySeconds: 15
+  periodSeconds: 10

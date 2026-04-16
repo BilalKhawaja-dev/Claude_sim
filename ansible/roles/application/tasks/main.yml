@@ -1,0 +1,63 @@
+---
+# Deploy frontend and backend Helm charts
+
+- name: Create claude-simulator namespace
+  kubernetes.core.k8s:
+    api_version: v1
+    kind: Namespace
+    name: claude-simulator
+    state: present
+
+- name: Deploy backend Helm chart
+  kubernetes.core.helm:
+    name: claude-simulator-backend
+    chart_ref: "{{ playbook_dir }}/../../k8s/backend"
+    release_namespace: claude-simulator
+    create_namespace: true
+    values_files:
+      - "{{ playbook_dir }}/../../k8s/backend/values.yaml"
+    wait: true
+    wait_timeout: "300s"
+
+- name: Deploy frontend Helm chart
+  kubernetes.core.helm:
+    name: claude-simulator-frontend
+    chart_ref: "{{ playbook_dir }}/../../k8s/frontend"
+    release_namespace: claude-simulator
+    create_namespace: true
+    values_files:
+      - "{{ playbook_dir }}/../../k8s/frontend/values.yaml"
+    wait: true
+    wait_timeout: "300s"
+
+- name: Create Ingress for application routing
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: claude-simulator-ingress
+        namespace: claude-simulator
+        annotations:
+          alb.ingress.kubernetes.io/scheme: internet-facing
+          alb.ingress.kubernetes.io/target-type: ip
+      spec:
+        ingressClassName: alb
+        rules:
+          - http:
+              paths:
+                - path: /api
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: claude-simulator-backend
+                      port:
+                        number: 8000
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: claude-simulator-frontend
+                      port:
+                        number: 3000
