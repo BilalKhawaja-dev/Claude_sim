@@ -46,3 +46,12 @@ k8s/secrets/*-populated.yaml
 
 # Logs
 *.log
+.terraform/
+*.tfstate
+*.tfstate.backup
+cdk.out/
+*.zip
+tfplan
+tfplan.out
+*.tfplan
+lambda-package/
